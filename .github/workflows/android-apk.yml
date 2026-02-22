@@ -28,21 +28,38 @@ jobs:
           cp index.html app/src/main/assets/index.html
 
           cat > settings.gradle <<'EOT'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          dependencyResolutionManagement {
+            repositories {
+              google()
+              mavenCentral()
+            }
+          }
           rootProject.name = "m3u_webview"
           include(":app")
           EOT
 
           cat > build.gradle <<'EOT'
-          buildscript {
-            repositories { google(); mavenCentral() }
-            dependencies { classpath "com.android.tools.build:gradle:8.2.2" }
+          plugins {
+            id "com.android.application" version "8.2.2" apply false
           }
-          allprojects { repositories { google(); mavenCentral() } }
           EOT
 
           cat > gradle.properties <<'EOT'
           android.useAndroidX=true
           android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m
+          EOT
+
+          # Important: Android plugin needs local.properties or ANDROID_SDK_ROOT
+          cat > local.properties <<EOT
+          sdk.dir=$ANDROID_SDK_ROOT
           EOT
 
           cat > app/build.gradle <<'EOT'
@@ -61,7 +78,7 @@ jobs:
             }
 
             buildTypes {
-              release {
+              debug {
                 minifyEnabled false
                 shrinkResources false
               }
@@ -81,20 +98,25 @@ jobs:
           mkdir -p app/src/main/java/com/boostifypro/m3u
 
           cat > app/src/main/AndroidManifest.xml <<'EOT'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.boostifypro.m3u">
+
             <uses-permission android:name="android.permission.INTERNET" />
+
             <application
               android:label="M3U Player"
-              android:icon="@mipmap/ic_launcher"
+              android:icon="@android:drawable/sym_def_app_icon"
               android:usesCleartextTraffic="true">
+
               <activity
-                android:name=".MainActivity"
+                android:name="com.boostifypro.m3u.MainActivity"
                 android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN" />
                   <category android:name="android.intent.category.LAUNCHER" />
                 </intent-filter>
               </activity>
+
             </application>
           </manifest>
           EOT
@@ -129,17 +151,18 @@ jobs:
           }
           EOT
 
-          mkdir -p app/src/main/res/values
-          cat > app/src/main/res/values/strings.xml <<'EOT'
-          <resources>
-            <string name="app_name">M3U Player</string>
-          </resources>
-          EOT
+      - name: Download Gradle
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y unzip
+          curl -L -o gradle.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-8.2/bin" >> $GITHUB_PATH
 
       - name: Build APK (debug)
         run: |
           sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
-          ./gradlew :app:assembleDebug --no-daemon
+          gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
