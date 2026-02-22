@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>M3U Player</title>
+<style>
+body { font-family: Arial; background:#111; color:white; margin:0 }
+header { background:#000; padding:10px; text-align:center }
+input { width:100%; padding:10px; margin:10px 0 }
+button { padding:10px; width:100%; background:#1db954; border:none; color:black }
+video { width:100%; height:auto; margin-top:10px }
+</style>
+</head>
+<body>
+
+<header><h2>M3U Player</h2></header>
+
+<input type="file" id="fileInput" accept=".m3u,.m3u8">
+<button onclick="loadM3U()">Charger la playlist</button>
+
+<ul id="list"></ul>
+<video id="player" controls></video>
+
+<script>
+function loadM3U() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return alert("Choisis un fichier M3U");
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split("\n");
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    let name = "";
+    lines.forEach(line => {
+      line = line.trim();
+      if (line.startsWith("#EXTINF")) {
+        name = line.split(",")[1] || "Chaîne";
+      } else if (line.startsWith("http")) {
+        const li = document.createElement("li");
+        li.innerText = name;
+        li.onclick = () => {
+          document.getElementById("player").src = line;
+        };
+        list.appendChild(li);
+      }
+    });
+  };
+  reader.readAsText(file);
+}
+</script>
+
+</body>
+</html>
