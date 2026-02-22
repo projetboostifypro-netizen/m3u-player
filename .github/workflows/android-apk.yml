@@ -28,9 +28,7 @@ jobs:
           cp index.html app/src/main/assets/index.html
 
           cat > settings.gradle <<'EOT'
-          pluginManagement {
-            repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement {
             repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
             repositories { google(); mavenCentral() }
@@ -40,9 +38,7 @@ jobs:
           EOT
 
           cat > build.gradle <<'EOT'
-          plugins {
-            id "com.android.application" version "8.2.2" apply false
-          }
+          plugins { id "com.android.application" version "8.2.2" apply false }
           EOT
 
           cat > gradle.properties <<'EOT'
@@ -69,15 +65,12 @@ jobs:
               applicationId "com.boostifypro.m3u"
               minSdk 23
               targetSdk 34
-              versionCode 2
-              versionName "1.1"
+              versionCode 3
+              versionName "1.2"
             }
 
             buildTypes {
-              debug {
-                minifyEnabled false
-                shrinkResources false
-              }
+              debug { minifyEnabled false; shrinkResources false }
             }
 
             compileOptions {
@@ -86,46 +79,31 @@ jobs:
             }
           }
 
-          dependencies {
-            implementation "androidx.appcompat:appcompat:1.6.1"
-          }
+          dependencies { implementation "androidx.appcompat:appcompat:1.6.1" }
           EOT
 
           cat > app/src/main/AndroidManifest.xml <<'EOT'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET" />
-
-            <!-- Android 13+ media permissions (harmless on older Android) -->
-            <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-            <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-            <!-- Older Android -->
-            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-
             <application
               android:label="M3U Player"
               android:icon="@android:drawable/sym_def_app_icon"
               android:usesCleartextTraffic="true"
               android:hardwareAccelerated="true">
-
               <activity
                 android:name="com.boostifypro.m3u.MainActivity"
-                android:exported="true"
-                android:screenOrientation="portrait">
+                android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN" />
                   <category android:name="android.intent.category.LAUNCHER" />
                 </intent-filter>
               </activity>
-
             </application>
           </manifest>
           EOT
 
           cat > app/src/main/res/values/strings.xml <<'EOT'
-          <resources>
-            <string name="app_name">M3U Player</string>
-          </resources>
+          <resources><string name="app_name">M3U Player</string></resources>
           EOT
 
           cat > app/src/main/java/com/boostifypro/m3u/MainActivity.java <<'EOT'
@@ -136,11 +114,9 @@ jobs:
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
-
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
-
             @Override
             protected void onCreate(Bundle savedInstanceState) {
               super.onCreate(savedInstanceState);
@@ -148,19 +124,15 @@ jobs:
               WebView webView = new WebView(this);
               setContentView(webView);
 
-              WebView.setWebContentsDebuggingEnabled(true);
-
               WebSettings s = webView.getSettings();
               s.setJavaScriptEnabled(true);
               s.setDomStorageEnabled(true);
               s.setAllowFileAccess(true);
               s.setAllowContentAccess(true);
               s.setMediaPlaybackRequiresUserGesture(false);
-              s.setJavaScriptCanOpenWindowsAutomatically(true);
 
               webView.setWebViewClient(new WebViewClient());
               webView.setWebChromeClient(new WebChromeClient());
-
               webView.loadUrl("file:///android_asset/index.html");
             }
           }
@@ -179,8 +151,15 @@ jobs:
           sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
           gradle :app:assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Show outputs (debug)
+        run: |
+          echo "=== app/build/outputs tree ==="
+          ls -R app/build/outputs || true
+          echo "=== find apks ==="
+          find . -type f -name "*.apk" -print || true
+
+      - name: Upload outputs
         uses: actions/upload-artifact@v4
         with:
-          name: m3u-player-apk
-          path: app/build/outputs/apk/
+          name: m3u-player-build-outputs
+          path: app/build/outputs/
