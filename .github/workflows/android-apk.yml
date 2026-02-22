@@ -22,24 +22,18 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Create minimal Android WebView project
+      - name: Create Android WebView project
         run: |
           mkdir -p app/src/main/assets
           cp index.html app/src/main/assets/index.html
 
           cat > settings.gradle <<'EOT'
           pluginManagement {
-            repositories {
-              google()
-              mavenCentral()
-              gradlePluginPortal()
-            }
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
-            repositories {
-              google()
-              mavenCentral()
-            }
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
           }
           rootProject.name = "m3u_webview"
           include(":app")
@@ -57,10 +51,12 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m
           EOT
 
-          # Important: Android plugin needs local.properties or ANDROID_SDK_ROOT
           cat > local.properties <<EOT
           sdk.dir=$ANDROID_SDK_ROOT
           EOT
+
+          mkdir -p app/src/main/java/com/boostifypro/m3u
+          mkdir -p app/src/main/res/values
 
           cat > app/build.gradle <<'EOT'
           plugins { id "com.android.application" }
@@ -73,8 +69,8 @@ jobs:
               applicationId "com.boostifypro.m3u"
               minSdk 23
               targetSdk 34
-              versionCode 1
-              versionName "1.0"
+              versionCode 2
+              versionName "1.1"
             }
 
             buildTypes {
@@ -95,22 +91,27 @@ jobs:
           }
           EOT
 
-          mkdir -p app/src/main/java/com/boostifypro/m3u
-
           cat > app/src/main/AndroidManifest.xml <<'EOT'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.boostifypro.m3u">
-
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET" />
+
+            <!-- Android 13+ media permissions (harmless on older Android) -->
+            <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+            <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+            <!-- Older Android -->
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
             <application
               android:label="M3U Player"
               android:icon="@android:drawable/sym_def_app_icon"
-              android:usesCleartextTraffic="true">
+              android:usesCleartextTraffic="true"
+              android:hardwareAccelerated="true">
 
               <activity
                 android:name="com.boostifypro.m3u.MainActivity"
-                android:exported="true">
+                android:exported="true"
+                android:screenOrientation="portrait">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN" />
                   <category android:name="android.intent.category.LAUNCHER" />
@@ -121,16 +122,25 @@ jobs:
           </manifest>
           EOT
 
+          cat > app/src/main/res/values/strings.xml <<'EOT'
+          <resources>
+            <string name="app_name">M3U Player</string>
+          </resources>
+          EOT
+
           cat > app/src/main/java/com/boostifypro/m3u/MainActivity.java <<'EOT'
           package com.boostifypro.m3u;
 
           import android.os.Bundle;
+          import android.webkit.WebChromeClient;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
+
             @Override
             protected void onCreate(Bundle savedInstanceState) {
               super.onCreate(savedInstanceState);
@@ -138,14 +148,19 @@ jobs:
               WebView webView = new WebView(this);
               setContentView(webView);
 
+              WebView.setWebContentsDebuggingEnabled(true);
+
               WebSettings s = webView.getSettings();
               s.setJavaScriptEnabled(true);
               s.setDomStorageEnabled(true);
               s.setAllowFileAccess(true);
               s.setAllowContentAccess(true);
               s.setMediaPlaybackRequiresUserGesture(false);
+              s.setJavaScriptCanOpenWindowsAutomatically(true);
 
               webView.setWebViewClient(new WebViewClient());
+              webView.setWebChromeClient(new WebChromeClient());
+
               webView.loadUrl("file:///android_asset/index.html");
             }
           }
