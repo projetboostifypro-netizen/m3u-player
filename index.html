@@ -1,25 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>M3U Player</title>
-<style>
-body{background:#111;color:white;font-family:Arial;text-align:center;padding:40px}
-button{padding:15px 20px;font-size:16px;border:none;border-radius:6px;background:#1db954;color:black}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>M3U Player</title>
+  <style>
+    body{margin:0;font-family:Arial;background:#111;color:#fff}
+    header{background:#000;padding:14px 16px;font-size:18px}
+    main{padding:14px}
+    input,button{width:100%;padding:12px;border:0;border-radius:8px;font-size:15px}
+    input{margin:10px 0;background:#222;color:#fff}
+    button{background:#1db954;color:#000;font-weight:700}
+    .row{display:flex;gap:10px}
+    .row button{width:auto;flex:1}
+    .small{opacity:.8;font-size:12px;margin-top:8px;line-height:1.35}
+    #channels{margin-top:12px}
+    .ch{padding:12px;background:#1a1a1a;border-radius:10px;margin:8px 0;cursor:pointer}
+    .ch .n{font-weight:700}
+    .ch .g{opacity:.7;font-size:12px;margin-top:4px}
+    video{width:100%;background:#000;border-radius:12px;margin-top:12px}
+    .bar{display:flex;gap:10px;margin-top:10px}
+    .bar input{margin:0}
+  </style>
 </head>
 <body>
+  <header>M3U Player</header>
+  <main>
+    <div class="small">✅ Colle une URL M3U/M3U8 (http/https). Pas de fichier local (plus stable).</div>
 
-<h1>M3U Player</h1>
-<p>Application chargée avec succès ✅</p>
+    <input id="m3uUrl" placeholder="https://exemple.com/playlist.m3u" />
 
-<button onclick="test()">Test JavaScript</button>
+    <div class="row">
+      <button onclick="loadM3U()">Charger playlist</button>
+      <button onclick="clearAll()">Vider</button>
+    </div>
+
+    <div class="bar">
+      <input id="search" placeholder="Recherche chaîne..." oninput="render()" />
+    </div>
+
+    <video id="player" controls playsinline></video>
+
+    <div id="channels"></div>
+  </main>
 
 <script>
-function test(){
-  alert("WebView fonctionne correctement !");
+let all = [];
+
+function clearAll(){
+  all = [];
+  document.getElementById('channels').innerHTML = "";
+  document.getElementById('player').src = "";
+}
+
+function parseAttrs(line, key){
+  const re = new RegExp(key + '="([^"]*)"', 'i');
+  const m = line.match(re);
+  return m ? m[1] : "";
+}
+
+function parseM3U(txt){
+  const lines = txt.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const out = [];
+  let name="", group="", logo="";
+  for(const line of lines){
+    if(line.startsWith("#EXTINF")){
+      name = (line.split(",")[1] || "Chaîne").trim();
+      group = parseAttrs(line, "group-title");
+      logo  = parseAttrs(line, "tvg-logo");
+    } else if(!line.startsWith("#")){
+      const url = line;
+      if(url.startsWith("http")){
+        out.push({name, group, logo, url});
+      }
+      name=""; group=""; logo="";
+    }
+  }
+  return out;
+}
+
+async function loadM3U(){
+  const url = document.getElementById("m3uUrl").value.trim();
+  if(!url) return alert("Colle une URL M3U/M3U8");
+  try{
+    document.getElementById("channels").innerHTML = '<div class="small">Chargement...</div>';
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const txt = await res.text();
+    all = parseM3U(txt);
+    if(all.length === 0){
+      document.getElementById("channels").innerHTML =
+        '<div class="small">Aucune chaîne trouvée. Vérifie l’URL.</div>';
+      return;
+    }
+    render();
+  }catch(e){
+    document.getElementById("channels").innerHTML =
+      '<div class="small">Erreur: ' + (e.message || e) + '<br/>⚠️ Si le serveur bloque CORS, ça ne marchera pas dans WebView.</div>';
+  }
+}
+
+function render(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const list = q ? all.filter(c => (c.name||"").toLowerCase().includes(q)) : all;
+
+  const div = document.getElementById("channels");
+  div.innerHTML = "";
+
+  for(const c of list){
+    const el = document.createElement("div");
+    el.className = "ch";
+    el.innerHTML = `<div class="n">${escapeHtml(c.name||"Chaîne")}</div>
+                    <div class="g">${escapeHtml(c.group||"")}</div>`;
+    el.onclick = () => play(c.url);
+    div.appendChild(el);
+  }
+}
+
+function play(url){
+  const v = document.getElementById("player");
+  v.src = url;
+  v.play().catch(()=>{});
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 </script>
-
 </body>
 </html>
