@@ -1,0 +1,148 @@
+name: Build Android APK (WebView)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create minimal Android WebView project
+        run: |
+          mkdir -p app/src/main/assets
+          cp index.html app/src/main/assets/index.html
+
+          cat > settings.gradle <<'EOT'
+          rootProject.name = "m3u_webview"
+          include(":app")
+          EOT
+
+          cat > build.gradle <<'EOT'
+          buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath "com.android.tools.build:gradle:8.2.2" }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOT
+
+          cat > gradle.properties <<'EOT'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOT
+
+          cat > app/build.gradle <<'EOT'
+          plugins { id "com.android.application" }
+
+          android {
+            namespace "com.boostifypro.m3u"
+            compileSdk 34
+
+            defaultConfig {
+              applicationId "com.boostifypro.m3u"
+              minSdk 23
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
+            }
+
+            buildTypes {
+              release {
+                minifyEnabled false
+                shrinkResources false
+              }
+            }
+
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+          }
+
+          dependencies {
+            implementation "androidx.appcompat:appcompat:1.6.1"
+          }
+          EOT
+
+          mkdir -p app/src/main/java/com/boostifypro/m3u
+
+          cat > app/src/main/AndroidManifest.xml <<'EOT'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <application
+              android:label="M3U Player"
+              android:icon="@mipmap/ic_launcher"
+              android:usesCleartextTraffic="true">
+              <activity
+                android:name=".MainActivity"
+                android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN" />
+                  <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOT
+
+          cat > app/src/main/java/com/boostifypro/m3u/MainActivity.java <<'EOT'
+          package com.boostifypro.m3u;
+
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
+
+              WebView webView = new WebView(this);
+              setContentView(webView);
+
+              WebSettings s = webView.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              s.setAllowFileAccess(true);
+              s.setAllowContentAccess(true);
+              s.setMediaPlaybackRequiresUserGesture(false);
+
+              webView.setWebViewClient(new WebViewClient());
+              webView.loadUrl("file:///android_asset/index.html");
+            }
+          }
+          EOT
+
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/strings.xml <<'EOT'
+          <resources>
+            <string name="app_name">M3U Player</string>
+          </resources>
+          EOT
+
+      - name: Build APK (debug)
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3u-player-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
